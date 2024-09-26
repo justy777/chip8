@@ -218,8 +218,11 @@ impl Chip8 {
 
             for col in 0..8 {
                 let sprite_pixel = sprite_byte & (0x80 >> col);
-                let screen_pixel =
-                    &mut self.video[((y_pos + row) as u16 * (VIDEO_WIDTH as u16) + (x_pos + col) as u16) as usize];
+                let screen_index = ((y_pos + row) as u16 * (VIDEO_WIDTH as u16) + (x_pos + col) as u16) as usize;
+                if screen_index >= VIDEO_WIDTH * VIDEO_HEIGHT {
+                    break;
+                }
+                let screen_pixel = &mut self.video[screen_index];
 
                 if sprite_pixel != 0 {
                     if *screen_pixel == 0xFFFF_FFFF {
