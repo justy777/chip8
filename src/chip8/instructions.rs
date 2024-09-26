@@ -1,5 +1,5 @@
-use rand::Rng;
 use crate::chip8::{Chip8, FONT_SET_START_ADDRESS, KEY_COUNT, VIDEO_HEIGHT, VIDEO_WIDTH};
+use rand::Rng;
 
 impl Chip8 {
     // 00E0: CLS
@@ -10,7 +10,7 @@ impl Chip8 {
     //00EE: RET
     pub(crate) fn op_00ee(&mut self) {
         self.sp -= 1;
-        self.pc = self.stack[self.pc as usize];
+        self.pc = self.stack[self.sp as usize];
     }
 
     // 1nnn: JP addr
@@ -29,7 +29,7 @@ impl Chip8 {
 
     // 3xkk: SE Vx, byte
     pub(crate) fn op_3xkk(&mut self) {
-        let vx = ((self.opcode * 0xF00) >> 8) as u8;
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
         if self.registers[vx as usize] == byte {
@@ -39,7 +39,7 @@ impl Chip8 {
 
     // 4xkk: SNE Vx, byte
     pub(crate) fn op_4xkk(&mut self) {
-        let vx = ((self.opcode * 0xF00) >> 8) as u8;
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
         if self.registers[vx as usize] != byte {
@@ -59,7 +59,7 @@ impl Chip8 {
 
     // 6xkk: LD Vx, byte
     pub(crate) fn op_6xkk(&mut self) {
-        let vx = ((self.opcode * 0xF00) >> 8) as u8;
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
         self.registers[vx as usize] = byte;
@@ -67,10 +67,10 @@ impl Chip8 {
 
     // 7xkk: ADD Vx, byte
     pub(crate) fn op_7xkk(&mut self) {
-        let vx = ((self.opcode * 0xF00) >> 8) as u8;
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
-        self.registers[vx as usize] += byte;
+        self.registers[vx as usize] = self.registers[vx as usize].wrapping_add(byte);
     }
 
     // 8xy0: LD Vx, Vy
@@ -110,15 +110,15 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        let sum = self.registers[vx as usize] as u16 + self.registers[vy as usize] as u16;
+        let (sum, did_overflow) = self.registers[vx as usize].overflowing_add(self.registers[vy as usize]);
 
-        if sum > 255 {
+        if did_overflow {
             self.registers[0xF] = 1;
         } else {
             self.registers[0xF] = 0;
         }
 
-        self.registers[vx as usize] = (sum & 0xFF) as u8;
+        self.registers[vx as usize] = sum;
     }
 
     // 8xy5: SUB Vx, Vy
@@ -126,13 +126,15 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        if self.registers[vx as usize] > self.registers[vy as usize] {
+        let (difference, did_overflow) = self.registers[vx as usize].overflowing_sub(self.registers[vy as usize]);
+
+        if did_overflow {
             self.registers[0xF] = 1;
         } else {
             self.registers[0xF] = 0;
         }
 
-        self.registers[vx as usize] -= self.registers[vy as usize];
+        self.registers[vx as usize] = difference;
     }
 
     // 8xy6: SHR Vx
@@ -148,13 +150,15 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        if self.registers[vy as usize] > self.registers[vx as usize] {
+        let (difference, did_overflow) = self.registers[vy as usize].overflowing_sub(self.registers[vx as usize]);
+
+        if did_overflow {
             self.registers[0xF] = 1;
         } else {
             self.registers[0xF] = 0;
         }
 
-        self.registers[vx as usize] = self.registers[vy as usize] - self.registers[vx as usize];
+        self.registers[vx as usize] = difference;
     }
 
     // 8xyE: SHL Vx {, Vy}
@@ -189,7 +193,7 @@ impl Chip8 {
 
     // Cxkk: RND Vx, byte
     pub(crate) fn op_cxkk(&mut self) {
-        let vx = ((self.opcode * 0xF00) >> 8) as u8;
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
         let mut rng = rand::thread_rng();
@@ -214,7 +218,8 @@ impl Chip8 {
 
             for col in 0..8 {
                 let sprite_pixel = sprite_byte & (0x80 >> col);
-                let screen_pixel = &mut self.video[((y_pos + row) * (VIDEO_WIDTH as u8) + (x_pos + col)) as usize];
+                let screen_pixel =
+                    &mut self.video[((y_pos + row) as u16 * (VIDEO_WIDTH as u16) + (x_pos + col) as u16) as usize];
 
                 if sprite_pixel != 0 {
                     if *screen_pixel == 0xFFFF_FFFF {
@@ -324,7 +329,7 @@ impl Chip8 {
     pub(crate) fn op_fx55(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
-        for i in 0..vx {
+        for i in 0..=vx {
             self.memory[(self.index + i as u16) as usize] = self.registers[i as usize];
         }
     }
@@ -333,9 +338,8 @@ impl Chip8 {
     pub(crate) fn op_fx65(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
-        for i in 0..vx {
+        for i in 0..=vx {
             self.registers[i as usize] = self.memory[(self.index + i as u16) as usize];
         }
     }
-
 }
