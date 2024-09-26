@@ -7,8 +7,9 @@ const MEMORY_SIZE: usize = 4096;
 const REGISTER_COUNT: usize = 16;
 const STACK_LEVELS: usize = 16;
 const KEY_COUNT: usize = 16;
-const VIDEO_WIDTH: usize = 64;
-const VIDEO_HEIGHT: usize = 32;
+
+pub const VIDEO_WIDTH: usize = 64;
+pub const VIDEO_HEIGHT: usize = 32;
 
 const FONT_SET_SIZE: usize = 80;
 const FONT_SET_START_ADDRESS: usize = 0x50;
@@ -33,6 +34,7 @@ const FONT_SET: [u8; FONT_SET_SIZE] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
+#[derive(Debug)]
 pub struct Chip8 {
     memory: [u8; MEMORY_SIZE],
     registers: [u8; REGISTER_COUNT],
@@ -42,17 +44,18 @@ pub struct Chip8 {
     stack: [u16; STACK_LEVELS],
     delay_timer: u8,
     sound_timer: u8,
-    keypad: [u8; KEY_COUNT],
-    video: [u32; VIDEO_WIDTH * VIDEO_HEIGHT],
     opcode: u16,
+    pub keypad: [u8; KEY_COUNT],
+    pub video: [u32; VIDEO_WIDTH * VIDEO_HEIGHT],
 }
 
 impl Chip8 {
-    fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         let mut memory = [0; MEMORY_SIZE];
 
         memory[FONT_SET_START_ADDRESS..(FONT_SET_START_ADDRESS + FONT_SET_SIZE)]
-            .copy_from_slice(&FONT_SET);
+            .copy_from_slice(&FONT_SET[..]);
 
         Self {
             memory,
@@ -63,20 +66,21 @@ impl Chip8 {
             stack: [0; STACK_LEVELS],
             delay_timer: 0,
             sound_timer: 0,
+            opcode: 0,
             keypad: [0; KEY_COUNT],
             video: [0; VIDEO_WIDTH * VIDEO_HEIGHT],
-            opcode: 0,
         }
     }
 
-    fn load_rom(&mut self, filename: &str) {
+    pub fn load_rom(&mut self, filename: &str) {
         let buffer = fs::read(filename).expect("unable to read file");
         self.memory[START_ADDRESS..(START_ADDRESS + buffer.len())].copy_from_slice(&buffer);
     }
 
-    fn cycle(&mut self) {
+    pub fn cycle(&mut self) {
         // Fetch
-        self.opcode = ((self.memory[self.pc as usize] as u16) << 8) | (self.memory[(self.pc + 1) as usize] as u16);
+        self.opcode = ((self.memory[self.pc as usize] as u16) << 8)
+            | (self.memory[(self.pc + 1) as usize] as u16);
 
         // Increment the PC before we execute anything
         self.pc += 2;
@@ -133,5 +137,11 @@ impl Chip8 {
             n if n & 0xF0FF == 0xF065 => self.op_fx65(),
             _ => panic!("Invalid opcode {:#X}", self.opcode),
         }
+    }
+}
+
+impl Default for Chip8 {
+    fn default() -> Self {
+        Self::new()
     }
 }
