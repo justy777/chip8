@@ -36,26 +36,29 @@ const FONT_SET: [u8; FONT_SET_SIZE] = [
 
 #[derive(Debug)]
 struct Quirks {
-    /// The AND, OR and XOR opcodes (8xy1, 8xy2 and 8xy3) reset the flags register to zero.
+    /// The AND, OR and XOR opcodes (`8xy1`, `8xy2` and `8xy3`) reset the flags register to zero.
     vf_reset: bool,
-    /// The save and load opcodes (Fx55 and Fx65) increment the index register.
+    /// The save and load opcodes (`Fx55` and `Fx65`) increment the index register.
     memory: bool,
     /// Sprites drawn at the bottom edge of the screen get clipped instead of wrapping around the screen.
     clipping: bool,
-    /// The shift opcodes (8xy6 and 8xyE) only operate on vX instead of storing the shifted version of vY in vX.
+    /// The shift opcodes (`8xy6` and `8xyE`) only operate on vX instead of storing the shifted version of vY in vX.
     shifting: bool,
-    /// The jump instruction (Bnnn) doesn't use v0, but vX instead where X is the highest nibble of nnn.
+    /// The jump instruction (`Bnnn`) doesn't use v0, but vX instead where X is the highest nibble of nnn.
     jumping: bool,
+    /// The get key instruction (`Fx0A`) waits for a key press and key up.
+    release: bool,
 }
 
 impl Quirks {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             vf_reset: true,
             memory: true,
             clipping: true,
             shifting: false,
             jumping: false,
+            release: true,
         }
     }
 }
@@ -72,6 +75,8 @@ pub struct Chip8 {
     sound_timer: u8,
     opcode: u16,
     quirks: Quirks,
+    // Used to check if pressed key is released
+    pressed_key: Option<u8>,
     pub keypad: [u8; KEY_COUNT],
     pub video: [u32; VIDEO_WIDTH * VIDEO_HEIGHT],
 }
@@ -95,6 +100,7 @@ impl Chip8 {
             sound_timer: 0,
             opcode: 0,
             quirks: Quirks::new(),
+            pressed_key: None,
             keypad: [0; KEY_COUNT],
             video: [0; VIDEO_WIDTH * VIDEO_HEIGHT],
         }

@@ -311,16 +311,30 @@ impl Chip8 {
     pub(crate) fn op_fx0a(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
-        let mut found = false;
-        for i in 0..KEY_COUNT {
-            if self.keypad[i] != 0 {
-                self.registers[vx as usize] = i as u8;
-                found = true;
-                break;
+        let mut done = false;
+
+        if !self.quirks.release || self.pressed_key.is_none() {
+            for i in 0..KEY_COUNT {
+                if self.keypad[i] != 0 {
+                    self.registers[vx as usize] = i as u8;
+                    if !self.quirks.release {
+                        done = true;
+                    }
+                    self.pressed_key = Some(i as u8);
+                    break;
+                }
             }
         }
 
-        if !found {
+        if self.quirks.release
+            && self.pressed_key.is_some()
+            && self.keypad[self.pressed_key.unwrap() as usize] == 0
+        {
+            self.pressed_key = None;
+            done = true;
+        }
+
+        if !done {
             self.pc -= 2;
         }
     }
