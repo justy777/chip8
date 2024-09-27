@@ -125,13 +125,13 @@ impl Chip8 {
         let (sum, did_overflow) =
             self.registers[vx as usize].overflowing_add(self.registers[vy as usize]);
 
+        self.registers[vx as usize] = sum;
+
         if did_overflow {
             self.registers[0xF] = 1;
         } else {
             self.registers[0xF] = 0;
         }
-
-        self.registers[vx as usize] = sum;
     }
 
     // 8xy5: SUB Vx, Vy
@@ -142,13 +142,13 @@ impl Chip8 {
         let (difference, did_overflow) =
             self.registers[vx as usize].overflowing_sub(self.registers[vy as usize]);
 
-        if did_overflow {
-            self.registers[0xF] = 1;
-        } else {
-            self.registers[0xF] = 0;
-        }
-
         self.registers[vx as usize] = difference;
+
+        if did_overflow {
+            self.registers[0xF] = 0;
+        } else {
+            self.registers[0xF] = 1;
+        }
     }
 
     // 8xy6: SHR Vx
@@ -160,8 +160,10 @@ impl Chip8 {
             self.registers[vx as usize] = self.registers[vy as usize];
         }
 
-        self.registers[0xF] = self.registers[vx as usize] & 0x1;
+        let new_flag = self.registers[vx as usize] & 0x1;
         self.registers[vx as usize] >>= 1;
+
+        self.registers[0xF] = new_flag;
     }
 
     // 8xy7: SUBN Vx, Vy
@@ -172,13 +174,13 @@ impl Chip8 {
         let (difference, did_overflow) =
             self.registers[vy as usize].overflowing_sub(self.registers[vx as usize]);
 
-        if did_overflow {
-            self.registers[0xF] = 1;
-        } else {
-            self.registers[0xF] = 0;
-        }
-
         self.registers[vx as usize] = difference;
+
+        if did_overflow {
+            self.registers[0xF] = 0;
+        } else {
+            self.registers[0xF] = 1;
+        }
     }
 
     // 8xyE: SHL Vx {, Vy}
@@ -190,8 +192,10 @@ impl Chip8 {
             self.registers[vx as usize] = self.registers[vy as usize];
         }
 
-        self.registers[0xF] = self.registers[vx as usize] & 0x1;
+        let new_flag = (self.registers[vx as usize] & 0x80) >> 7;
         self.registers[vx as usize] <<= 1;
+
+        self.registers[0xF] = new_flag;
     }
 
     // 9xy0: SNE Vx, Vy
