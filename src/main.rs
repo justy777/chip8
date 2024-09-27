@@ -205,7 +205,7 @@ fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, String> {
 fn convert(data: &[u32; 2048]) -> [u8; 8192] {
     let mut res = [0; 8192];
     for i in 0..2048 {
-        res[4*i..][..4].copy_from_slice(&data[i].to_be_bytes());
+        res[4 * i..][..4].copy_from_slice(&data[i].to_be_bytes());
     }
     res
 }

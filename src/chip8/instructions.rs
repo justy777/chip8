@@ -86,6 +86,10 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
+        if self.quirks.vf_reset {
+            self.registers[0xF] = 0;
+        }
+
         self.registers[vx as usize] |= self.registers[vy as usize];
     }
 
@@ -93,6 +97,10 @@ impl Chip8 {
     pub(crate) fn op_8xy2(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
+
+        if self.quirks.vf_reset {
+            self.registers[0xF] = 0;
+        }
 
         self.registers[vx as usize] &= self.registers[vy as usize];
     }
@@ -102,6 +110,10 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
+        if self.quirks.vf_reset {
+            self.registers[0xF] = 0;
+        }
+
         self.registers[vx as usize] ^= self.registers[vy as usize];
     }
 
@@ -110,7 +122,8 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        let (sum, did_overflow) = self.registers[vx as usize].overflowing_add(self.registers[vy as usize]);
+        let (sum, did_overflow) =
+            self.registers[vx as usize].overflowing_add(self.registers[vy as usize]);
 
         if did_overflow {
             self.registers[0xF] = 1;
@@ -126,7 +139,8 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        let (difference, did_overflow) = self.registers[vx as usize].overflowing_sub(self.registers[vy as usize]);
+        let (difference, did_overflow) =
+            self.registers[vx as usize].overflowing_sub(self.registers[vy as usize]);
 
         if did_overflow {
             self.registers[0xF] = 1;
@@ -140,6 +154,11 @@ impl Chip8 {
     // 8xy6: SHR Vx
     pub(crate) fn op_8xy6(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
+        let vy = ((self.opcode & 0xF0) >> 4) as u8;
+
+        if !self.quirks.shifting {
+            self.registers[vx as usize] = self.registers[vy as usize];
+        }
 
         self.registers[0xF] = self.registers[vx as usize] & 0x1;
         self.registers[vx as usize] >>= 1;
@@ -150,7 +169,8 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
-        let (difference, did_overflow) = self.registers[vy as usize].overflowing_sub(self.registers[vx as usize]);
+        let (difference, did_overflow) =
+            self.registers[vy as usize].overflowing_sub(self.registers[vx as usize]);
 
         if did_overflow {
             self.registers[0xF] = 1;
@@ -164,6 +184,11 @@ impl Chip8 {
     // 8xyE: SHL Vx {, Vy}
     pub(crate) fn op_8xye(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
+        let vy = ((self.opcode & 0xF0) >> 4) as u8;
+
+        if !self.quirks.shifting {
+            self.registers[vx as usize] = self.registers[vy as usize];
+        }
 
         self.registers[0xF] = self.registers[vx as usize] & 0x1;
         self.registers[vx as usize] <<= 1;
@@ -187,8 +212,13 @@ impl Chip8 {
 
     // Bnnn: JP V0, addr
     pub(crate) fn op_bnnn(&mut self) {
+        let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let address = self.opcode & 0xFFF;
-        self.pc = self.registers[0] as u16 + address;
+        if self.quirks.jumping {
+            self.pc = address + self.registers[vx as usize] as u16;
+        } else {
+            self.pc = self.registers[0] as u16 + address;
+        }
     }
 
     // Cxkk: RND Vx, byte
@@ -208,20 +238,29 @@ impl Chip8 {
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
         let height = (self.opcode & 0xF) as u8;
 
-        let x_pos = self.registers[vx as usize] % (VIDEO_WIDTH as u8);
-        let y_pos = self.registers[vy as usize] % (VIDEO_HEIGHT as u8);
+        let x_pos = self.registers[vx as usize] % VIDEO_WIDTH as u8;
+        let y_pos = self.registers[vy as usize] % VIDEO_HEIGHT as u8;
 
         self.registers[0xF] = 0;
 
         for row in 0..height {
             let sprite_byte = self.memory[(self.index + row as u16) as usize];
 
+            if self.quirks.clipping && (y_pos + row) as usize >= VIDEO_HEIGHT {
+                break;
+            }
+
             for col in 0..8 {
                 let sprite_pixel = sprite_byte & (0x80 >> col);
-                let screen_index = ((y_pos + row) as u16 * (VIDEO_WIDTH as u16) + (x_pos + col) as u16) as usize;
-                if screen_index >= VIDEO_WIDTH * VIDEO_HEIGHT {
+
+                if self.quirks.clipping && (x_pos + col) as usize >= VIDEO_WIDTH {
                     break;
                 }
+
+                let wrapped_x_pos = (x_pos + col) as usize % VIDEO_WIDTH;
+                let wrapped_y_pos = (y_pos + row) as usize % VIDEO_HEIGHT;
+                let screen_index = wrapped_y_pos * VIDEO_WIDTH + wrapped_x_pos;
+
                 let screen_pixel = &mut self.video[screen_index];
 
                 if sprite_pixel != 0 {
@@ -335,6 +374,10 @@ impl Chip8 {
         for i in 0..=vx {
             self.memory[(self.index + i as u16) as usize] = self.registers[i as usize];
         }
+
+        if self.quirks.memory {
+            self.index = self.index + vx as u16 + 1;
+        }
     }
 
     // Fx65: LD Vx, [I]
@@ -343,6 +386,10 @@ impl Chip8 {
 
         for i in 0..=vx {
             self.registers[i as usize] = self.memory[(self.index + i as u16) as usize];
+        }
+
+        if self.quirks.memory {
+            self.index = self.index + vx as u16 + 1;
         }
     }
 }

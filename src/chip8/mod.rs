@@ -35,6 +35,32 @@ const FONT_SET: [u8; FONT_SET_SIZE] = [
 ];
 
 #[derive(Debug)]
+struct Quirks {
+    /// The AND, OR and XOR opcodes (8xy1, 8xy2 and 8xy3) reset the flags register to zero.
+    vf_reset: bool,
+    /// The save and load opcodes (Fx55 and Fx65) increment the index register.
+    memory: bool,
+    /// Sprites drawn at the bottom edge of the screen get clipped instead of wrapping around the screen.
+    clipping: bool,
+    /// The shift opcodes (8xy6 and 8xyE) only operate on vX instead of storing the shifted version of vY in vX.
+    shifting: bool,
+    /// The jump instruction (Bnnn) doesn't use v0, but vX instead where X is the highest nibble of nnn.
+    jumping: bool,
+}
+
+impl Quirks {
+    pub fn new() -> Self {
+        Self {
+            vf_reset: true,
+            memory: true,
+            clipping: true,
+            shifting: false,
+            jumping: false,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Chip8 {
     memory: [u8; MEMORY_SIZE],
     registers: [u8; REGISTER_COUNT],
@@ -45,6 +71,7 @@ pub struct Chip8 {
     delay_timer: u8,
     sound_timer: u8,
     opcode: u16,
+    quirks: Quirks,
     pub keypad: [u8; KEY_COUNT],
     pub video: [u32; VIDEO_WIDTH * VIDEO_HEIGHT],
 }
@@ -67,6 +94,7 @@ impl Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             opcode: 0,
+            quirks: Quirks::new(),
             keypad: [0; KEY_COUNT],
             video: [0; VIDEO_WIDTH * VIDEO_HEIGHT],
         }
