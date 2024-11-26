@@ -1,4 +1,4 @@
-use chip8::chip8::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
+use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;

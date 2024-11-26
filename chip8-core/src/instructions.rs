@@ -1,4 +1,4 @@
-use crate::chip8::{Chip8, FONT_SET_START_ADDRESS, KEY_COUNT, VIDEO_HEIGHT, VIDEO_WIDTH};
+use crate::{Chip8, FONT_SET_START_ADDRESS, KEY_COUNT, VIDEO_HEIGHT, VIDEO_WIDTH};
 use rand::Rng;
 
 impl Chip8 {
