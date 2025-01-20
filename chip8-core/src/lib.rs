@@ -1,5 +1,3 @@
-use std::fs;
-
 #[allow(clippy::cast_lossless)]
 mod instructions;
 
@@ -64,6 +62,21 @@ impl Quirks {
 }
 
 #[derive(Debug)]
+pub enum ExecuteError {
+    UndefinedInstruction(u16),
+}
+
+impl std::fmt::Display for ExecuteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::UndefinedInstruction(opcode) => write!(f, "Undefined instruction {opcode}"),
+        }
+    }
+}
+
+impl std::error::Error for ExecuteError {}
+
+#[derive(Debug)]
 pub struct Chip8 {
     memory: [u8; MEMORY_SIZE],
     registers: [u8; REGISTER_COUNT],
@@ -106,12 +119,11 @@ impl Chip8 {
         }
     }
 
-    pub fn load_rom(&mut self, filename: &str) {
-        let buffer = fs::read(filename).expect("unable to read file");
-        self.memory[START_ADDRESS..(START_ADDRESS + buffer.len())].copy_from_slice(&buffer);
+    pub fn load_rom(&mut self, rom: &[u8]) {
+        self.memory[START_ADDRESS..(START_ADDRESS + rom.len())].copy_from_slice(rom);
     }
 
-    pub fn cycle(&mut self) {
+    pub fn emulate(&mut self) -> Result<(), ExecuteError> {
         // Fetch
         self.opcode = ((self.memory[self.pc as usize] as u16) << 8)
             | (self.memory[(self.pc + 1) as usize] as u16);
@@ -120,7 +132,7 @@ impl Chip8 {
         self.pc += 2;
 
         // Decode and Execute
-        self.execute();
+        self.execute()?;
 
         // Decrement the delay timer if it's been set
         if self.delay_timer > 0 {
@@ -131,9 +143,11 @@ impl Chip8 {
         if self.sound_timer > 0 {
             self.sound_timer -= 1;
         }
+
+        Ok(())
     }
 
-    fn execute(&mut self) {
+    fn execute(&mut self) -> Result<(), ExecuteError> {
         match self.opcode {
             0x00E0 => self.op_00e0(),
             0x00EE => self.op_00ee(),
@@ -169,8 +183,9 @@ impl Chip8 {
             n if n & 0xF0FF == 0xF033 => self.op_fx33(),
             n if n & 0xF0FF == 0xF055 => self.op_fx55(),
             n if n & 0xF0FF == 0xF065 => self.op_fx65(),
-            _ => panic!("Invalid opcode {:#X}", self.opcode),
+            _ => return Err(ExecuteError::UndefinedInstruction(self.opcode)),
         }
+        Ok(())
     }
 }
 

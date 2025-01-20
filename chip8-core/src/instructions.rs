@@ -327,8 +327,9 @@ impl Chip8 {
         }
 
         if self.quirks.release
-            && self.pressed_key.is_some()
-            && self.keypad[self.pressed_key.unwrap() as usize] == 0
+            && self
+                .pressed_key
+                .is_some_and(|val| self.keypad[val as usize] == 0)
         {
             self.pressed_key = None;
             done = true;

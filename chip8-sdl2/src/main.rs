@@ -1,3 +1,6 @@
+#![allow(clippy::cast_lossless)]
+
+use anyhow::{anyhow, Context};
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -7,15 +10,24 @@ use sdl2::Sdl;
 use std::env;
 use std::str::FromStr;
 
-fn main() -> Result<(), String> {
+fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    let video_scale = u32::from_str(&args[1]).map_err(|e| e.to_string())?;
-    let cycle_delay = u128::from_str(&args[2]).map_err(|e| e.to_string())?;
-    let rom_filename = args[3].clone();
+    let video_scale = u32::from_str(&args[1])
+        .with_context(|| format!("Failed to parse video scale {}", &args[1]))?;
+    let cycle_delay = u128::from_str(&args[2])
+        .with_context(|| format!("Failed to parse cycle delay {}", &args[2]))?;
+    let rom_path = &args[3];
 
-    let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
+    let sdl_context = sdl2::init()
+        .map_err(|err| anyhow!(err))
+        .context("Failed to init SDL")?;
+
+    let video_subsystem = sdl_context
+        .video()
+        .map_err(|err| anyhow!(err))
+        .context("Failed to init SDL video subsystem")?;
+
     let window = video_subsystem
         .window(
             "CHIP-8 Emulator",
@@ -26,13 +38,13 @@ fn main() -> Result<(), String> {
         .resizable()
         .opengl()
         .build()
-        .map_err(|e| e.to_string())?;
+        .context("Failed to build SDL window")?;
 
     let mut canvas = window
         .into_canvas()
         .accelerated()
         .build()
-        .map_err(|e| e.to_string())?;
+        .context("Failed to build SDL canvas")?;
 
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator
@@ -42,10 +54,13 @@ fn main() -> Result<(), String> {
             VIDEO_WIDTH as u32,
             VIDEO_HEIGHT as u32,
         )
-        .map_err(|e| e.to_string())?;
+        .context("Failed to build SDL texture")?;
+
+    let rom = std::fs::read(rom_path)
+        .with_context(|| format!("Failed to load rom from file {rom_path}"))?;
 
     let mut chip8 = Chip8::new();
-    chip8.load_rom(&rom_filename);
+    chip8.load_rom(&rom);
 
     let video_pitch = size_of::<u32>() * VIDEO_WIDTH;
 
@@ -60,13 +75,22 @@ fn main() -> Result<(), String> {
         if dt > cycle_delay {
             last_cycle_time = std::time::Instant::now();
 
-            chip8.cycle();
+            chip8
+                .emulate()
+                .context("Failed while emulating Chip8 instruction")?;
 
             texture
                 .update(None, &convert(&chip8.video), video_pitch)
-                .map_err(|e| e.to_string())?;
+                .map_err(|err| anyhow!(err))
+                .context("Failed to update SDL texture")?;
+
             canvas.clear();
-            canvas.copy(&texture, None, None)?;
+
+            canvas
+                .copy(&texture, None, None)
+                .map_err(|err| anyhow!(err))
+                .context("Drawing to SDL canvas failed")?;
+
             canvas.present();
         }
     }
@@ -74,10 +98,35 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, String> {
+#[derive(Debug)]
+enum ProcessInputError {
+    EventPump(String),
+}
+
+impl From<String> for ProcessInputError {
+    fn from(s: String) -> Self {
+        Self::EventPump(s)
+    }
+}
+
+impl std::fmt::Display for ProcessInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::EventPump(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl std::error::Error for ProcessInputError {}
+
+fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, ProcessInputError> {
     let mut quit = false;
 
-    for event in sdl_context.event_pump()?.poll_iter() {
+    for event in sdl_context
+        .event_pump()
+        .map_err(ProcessInputError::from)?
+        .poll_iter()
+    {
         match event {
             Event::Quit { .. } => {
                 quit = true;
@@ -91,115 +140,71 @@ fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, String> {
                     quit = true;
                     break;
                 }
-                Keycode::X => {
-                    keys[0] = 1;
-                }
-                Keycode::NUM_1 => {
-                    keys[1] = 1;
-                }
-                Keycode::NUM_2 => {
-                    keys[2] = 1;
-                }
-                Keycode::NUM_3 => {
-                    keys[3] = 1;
-                }
-                Keycode::Q => {
-                    keys[4] = 1;
-                }
-                Keycode::W => {
-                    keys[5] = 1;
-                }
-                Keycode::E => {
-                    keys[6] = 1;
-                }
-                Keycode::A => {
-                    keys[7] = 1;
-                }
-                Keycode::S => {
-                    keys[8] = 1;
-                }
-                Keycode::D => {
-                    keys[9] = 1;
-                }
-                Keycode::Z => {
-                    keys[10] = 1;
-                }
-                Keycode::C => {
-                    keys[11] = 1;
-                }
-                Keycode::NUM_4 => {
-                    keys[12] = 1;
-                }
-                Keycode::R => {
-                    keys[13] = 1;
-                }
-                Keycode::F => {
-                    keys[14] = 1;
-                }
-                Keycode::V => {
-                    keys[15] = 1;
-                }
-                _ => {}
+                keycode => update_keys(keys, keycode, 1),
             },
             Event::KeyUp {
                 keycode: Some(keycode),
                 ..
-            } => match keycode {
-                Keycode::X => {
-                    keys[0] = 0;
-                }
-                Keycode::NUM_1 => {
-                    keys[1] = 0;
-                }
-                Keycode::NUM_2 => {
-                    keys[2] = 0;
-                }
-                Keycode::NUM_3 => {
-                    keys[3] = 0;
-                }
-                Keycode::Q => {
-                    keys[4] = 0;
-                }
-                Keycode::W => {
-                    keys[5] = 0;
-                }
-                Keycode::E => {
-                    keys[6] = 0;
-                }
-                Keycode::A => {
-                    keys[7] = 0;
-                }
-                Keycode::S => {
-                    keys[8] = 0;
-                }
-                Keycode::D => {
-                    keys[9] = 0;
-                }
-                Keycode::Z => {
-                    keys[10] = 0;
-                }
-                Keycode::C => {
-                    keys[11] = 0;
-                }
-                Keycode::NUM_4 => {
-                    keys[12] = 0;
-                }
-                Keycode::R => {
-                    keys[13] = 0;
-                }
-                Keycode::F => {
-                    keys[14] = 0;
-                }
-                Keycode::V => {
-                    keys[15] = 0;
-                }
-                _ => {}
-            },
+            } => update_keys(keys, keycode, 0),
             _ => {}
         }
     }
 
     Ok(quit)
+}
+
+fn update_keys(keys: &mut [u8], keycode: Keycode, value: u8) {
+    match keycode {
+        Keycode::X => {
+            keys[0] = value;
+        }
+        Keycode::NUM_1 => {
+            keys[1] = value;
+        }
+        Keycode::NUM_2 => {
+            keys[2] = value;
+        }
+        Keycode::NUM_3 => {
+            keys[3] = value;
+        }
+        Keycode::Q => {
+            keys[4] = value;
+        }
+        Keycode::W => {
+            keys[5] = value;
+        }
+        Keycode::E => {
+            keys[6] = value;
+        }
+        Keycode::A => {
+            keys[7] = value;
+        }
+        Keycode::S => {
+            keys[8] = value;
+        }
+        Keycode::D => {
+            keys[9] = value;
+        }
+        Keycode::Z => {
+            keys[10] = value;
+        }
+        Keycode::C => {
+            keys[11] = value;
+        }
+        Keycode::NUM_4 => {
+            keys[12] = value;
+        }
+        Keycode::R => {
+            keys[13] = value;
+        }
+        Keycode::F => {
+            keys[14] = value;
+        }
+        Keycode::V => {
+            keys[15] = value;
+        }
+        _ => {}
+    }
 }
 
 fn convert(data: &[u32; 2048]) -> [u8; 8192] {
