@@ -230,8 +230,8 @@ impl Chip8 {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
-        let mut rng = rand::thread_rng();
-        let rand_byte: u8 = rng.gen();
+        let mut rng = rand::rng();
+        let rand_byte: u8 = rng.random();
 
         self.registers[vx as usize] = rand_byte & byte;
     }

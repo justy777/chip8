@@ -1,12 +1,12 @@
 #![allow(clippy::cast_lossless)]
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
+use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::render::TextureAccess;
-use sdl2::Sdl;
 use std::env;
 use std::str::FromStr;
 
