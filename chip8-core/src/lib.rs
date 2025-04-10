@@ -1,4 +1,5 @@
-#[allow(clippy::cast_lossless)]
+#![allow(clippy::cast_lossless)]
+
 mod instructions;
 
 const MEMORY_SIZE: usize = 4096;

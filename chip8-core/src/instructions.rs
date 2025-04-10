@@ -8,19 +8,19 @@ impl Chip8 {
     }
 
     //00EE: RET
-    pub(crate) fn op_00ee(&mut self) {
+    pub(crate) const fn op_00ee(&mut self) {
         self.sp -= 1;
         self.pc = self.stack[self.sp as usize];
     }
 
     // 1nnn: JP addr
-    pub(crate) fn op_1nnn(&mut self) {
+    pub(crate) const fn op_1nnn(&mut self) {
         let address = self.opcode & 0xFFF;
         self.pc = address;
     }
 
     // 2nnn: CALL addr
-    pub(crate) fn op_2nnn(&mut self) {
+    pub(crate) const fn op_2nnn(&mut self) {
         let address = self.opcode & 0xFFF;
         self.stack[self.sp as usize] = self.pc;
         self.sp += 1;
@@ -28,7 +28,7 @@ impl Chip8 {
     }
 
     // 3xkk: SE Vx, byte
-    pub(crate) fn op_3xkk(&mut self) {
+    pub(crate) const fn op_3xkk(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
@@ -38,7 +38,7 @@ impl Chip8 {
     }
 
     // 4xkk: SNE Vx, byte
-    pub(crate) fn op_4xkk(&mut self) {
+    pub(crate) const fn op_4xkk(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
@@ -48,7 +48,7 @@ impl Chip8 {
     }
 
     // 5xy0: SE Vx, Vy
-    pub(crate) fn op_5xy0(&mut self) {
+    pub(crate) const fn op_5xy0(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -58,7 +58,7 @@ impl Chip8 {
     }
 
     // 6xkk: LD Vx, byte
-    pub(crate) fn op_6xkk(&mut self) {
+    pub(crate) const fn op_6xkk(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
@@ -66,7 +66,7 @@ impl Chip8 {
     }
 
     // 7xkk: ADD Vx, byte
-    pub(crate) fn op_7xkk(&mut self) {
+    pub(crate) const fn op_7xkk(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let byte = (self.opcode & 0xFF) as u8;
 
@@ -74,7 +74,7 @@ impl Chip8 {
     }
 
     // 8xy0: LD Vx, Vy
-    pub(crate) fn op_8xy0(&mut self) {
+    pub(crate) const fn op_8xy0(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -82,7 +82,7 @@ impl Chip8 {
     }
 
     // 8xy1: OR Vx, Vy
-    pub(crate) fn op_8xy1(&mut self) {
+    pub(crate) const fn op_8xy1(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -94,7 +94,7 @@ impl Chip8 {
     }
 
     // 8xy2: AND Vx, Vy
-    pub(crate) fn op_8xy2(&mut self) {
+    pub(crate) const fn op_8xy2(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -106,7 +106,7 @@ impl Chip8 {
     }
 
     // 8xy3: XOR Vx, Vy
-    pub(crate) fn op_8xy3(&mut self) {
+    pub(crate) const fn op_8xy3(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -118,7 +118,7 @@ impl Chip8 {
     }
 
     // 8xy4: ADD Vx, Vy
-    pub(crate) fn op_8xy4(&mut self) {
+    pub(crate) const fn op_8xy4(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -135,7 +135,7 @@ impl Chip8 {
     }
 
     // 8xy5: SUB Vx, Vy
-    pub(crate) fn op_8xy5(&mut self) {
+    pub(crate) const fn op_8xy5(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -152,7 +152,7 @@ impl Chip8 {
     }
 
     // 8xy6: SHR Vx
-    pub(crate) fn op_8xy6(&mut self) {
+    pub(crate) const fn op_8xy6(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -167,7 +167,7 @@ impl Chip8 {
     }
 
     // 8xy7: SUBN Vx, Vy
-    pub(crate) fn op_8xy7(&mut self) {
+    pub(crate) const fn op_8xy7(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -184,7 +184,7 @@ impl Chip8 {
     }
 
     // 8xyE: SHL Vx {, Vy}
-    pub(crate) fn op_8xye(&mut self) {
+    pub(crate) const fn op_8xye(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -199,7 +199,7 @@ impl Chip8 {
     }
 
     // 9xy0: SNE Vx, Vy
-    pub(crate) fn op_9xy0(&mut self) {
+    pub(crate) const fn op_9xy0(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let vy = ((self.opcode & 0xF0) >> 4) as u8;
 
@@ -209,13 +209,13 @@ impl Chip8 {
     }
 
     // Annn: LD I, addr
-    pub(crate) fn op_annn(&mut self) {
+    pub(crate) const fn op_annn(&mut self) {
         let address = self.opcode & 0xFFF;
         self.index = address;
     }
 
     // Bnnn: JP V0, addr
-    pub(crate) fn op_bnnn(&mut self) {
+    pub(crate) const fn op_bnnn(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let address = self.opcode & 0xFFF;
         if self.quirks.jumping {
@@ -279,7 +279,7 @@ impl Chip8 {
     }
 
     // Ex9E: SKP vx
-    pub(crate) fn op_ex9e(&mut self) {
+    pub(crate) const fn op_ex9e(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         let key = self.registers[vx as usize];
@@ -290,7 +290,7 @@ impl Chip8 {
     }
 
     // ExA1: SKNP Vx
-    pub(crate) fn op_exa1(&mut self) {
+    pub(crate) const fn op_exa1(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         let key = self.registers[vx as usize];
@@ -301,7 +301,7 @@ impl Chip8 {
     }
 
     // Fx07: LD Vx, DT
-    pub(crate) fn op_fx07(&mut self) {
+    pub(crate) const fn op_fx07(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         self.registers[vx as usize] = self.delay_timer;
@@ -341,28 +341,28 @@ impl Chip8 {
     }
 
     // Fx15: LD DT, Vx
-    pub(crate) fn op_fx15(&mut self) {
+    pub(crate) const fn op_fx15(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         self.delay_timer = self.registers[vx as usize];
     }
 
     // Fx18: LD ST, Vx
-    pub(crate) fn op_fx18(&mut self) {
+    pub(crate) const fn op_fx18(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         self.sound_timer = self.registers[vx as usize];
     }
 
     // Fx1E: ADD I, Vx
-    pub(crate) fn op_fx1e(&mut self) {
+    pub(crate) const fn op_fx1e(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
 
         self.index += self.registers[vx as usize] as u16;
     }
 
     // Fx29: LD F, Vx
-    pub(crate) fn op_fx29(&mut self) {
+    pub(crate) const fn op_fx29(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let digit = self.registers[vx as usize];
 
@@ -370,7 +370,7 @@ impl Chip8 {
     }
 
     // Fx33: LD B, Vx
-    pub(crate) fn op_fx33(&mut self) {
+    pub(crate) const fn op_fx33(&mut self) {
         let vx = ((self.opcode & 0xF00) >> 8) as u8;
         let mut value = self.registers[vx as usize];
 
