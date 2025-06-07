@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
                 .context("Failed while emulating Chip8 instruction")?;
 
             texture
-                .update(None, &convert(&chip8.video), video_pitch)
+                .update(None, &convert_to_rgba(&chip8.video), video_pitch)
                 .map_err(|err| anyhow!(err))
                 .context("Failed to update SDL texture")?;
 
@@ -207,10 +207,12 @@ fn update_keys(keys: &mut [u8], keycode: Keycode, value: u8) {
     }
 }
 
-fn convert(data: &[u32; 2048]) -> [u8; 8192] {
-    let mut res = [0; 8192];
-    for i in 0..2048 {
-        res[4 * i..][..4].copy_from_slice(&data[i].to_be_bytes());
+fn convert_to_rgba(
+    data: &[u32; VIDEO_WIDTH * VIDEO_HEIGHT],
+) -> [u8; VIDEO_WIDTH * VIDEO_HEIGHT * 4] {
+    let mut buf = [0; VIDEO_WIDTH * VIDEO_HEIGHT * 4];
+    for i in 0..(VIDEO_WIDTH * VIDEO_HEIGHT) {
+        buf[(i * 4)..][..4].copy_from_slice(&data[i].to_be_bytes());
     }
-    res
+    buf
 }
