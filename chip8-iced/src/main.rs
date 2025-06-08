@@ -5,10 +5,12 @@ use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use iced::widget::container::Style;
 use iced::widget::image::{FilterMethod, Handle};
 use iced::{Color, Element, Length, Size, Subscription, Task, widget, window};
-use std::env;
 use std::ops::Div;
+use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
+use std::{env, io};
 
 fn main() -> iced::Result {
     let args: Vec<String> = env::args().collect();
@@ -19,20 +21,21 @@ fn main() -> iced::Result {
         .unwrap_or_else(|_| panic!("Failed to parse refresh rate {}", &args[2]));
     let rom_path = args[3].clone();
 
-    iced::application("CHIP-8 Emulator", App::update, App::view)
+    iced::application(App::title, App::update, App::view)
         .subscription(App::subscription)
         .window_size(Size::new(
             VIDEO_WIDTH as f32 * video_scale,
             VIDEO_HEIGHT as f32 * video_scale,
         ))
         .run_with(move || {
-            let app = App::new(&rom_path, refresh_rate);
-            (app, Task::none())
+            let app = App::new(refresh_rate);
+            (app, Task::perform(load_file(rom_path), Message::RomLoaded))
         })
 }
 
 #[derive(Debug, Clone)]
 enum Message {
+    RomLoaded(Result<Arc<Vec<u8>>, io::ErrorKind>),
     Step,
     Exit,
 }
@@ -40,22 +43,36 @@ enum Message {
 struct App {
     emulator: Chip8,
     refresh_rate: u32,
+    running: bool,
+    error: Option<io::ErrorKind>,
 }
 
 impl App {
-    fn new(rom_path: &str, refresh_rate: u32) -> Self {
-        let mut emulator = Chip8::new();
-        let rom = std::fs::read(rom_path)
-            .unwrap_or_else(|_| panic!("Failed to load rom from file {rom_path}"));
-        emulator.load_rom(&rom);
+    fn new(refresh_rate: u32) -> Self {
+        let emulator = Chip8::new();
         Self {
             emulator,
             refresh_rate,
+            running: false,
+            error: None,
         }
+    }
+
+    fn title(&self) -> String {
+        String::from("CHIP-8 Emulator")
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::RomLoaded(Ok(rom)) => {
+                self.emulator.load_rom(&rom);
+                self.running = true;
+                Task::none()
+            }
+            Message::RomLoaded(Err(err)) => {
+                self.error = Some(err);
+                Task::none()
+            }
             Message::Step => {
                 self.emulator
                     .emulate()
@@ -83,15 +100,24 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(Duration::from_secs(1).div(self.refresh_rate)).map(|_| Message::Step)
+        if self.running {
+            iced::time::every(Duration::from_secs(1).div(self.refresh_rate)).map(|_| Message::Step)
+        } else {
+            Subscription::none()
+        }
     }
 }
 
-fn convert_to_rgba(
-    data: &[u32; VIDEO_WIDTH * VIDEO_HEIGHT],
-) -> [u8; VIDEO_WIDTH * VIDEO_HEIGHT * 4] {
-    let mut buf = [0; VIDEO_WIDTH * VIDEO_HEIGHT * 4];
-    for i in 0..(VIDEO_WIDTH * VIDEO_HEIGHT) {
+async fn load_file(path: impl AsRef<Path>) -> Result<Arc<Vec<u8>>, io::ErrorKind> {
+    tokio::fs::read(path)
+        .await
+        .map(Arc::new)
+        .map_err(|err| err.kind())
+}
+
+fn convert_to_rgba(data: &[u32]) -> Vec<u8> {
+    let mut buf = vec![0; data.len() * 4];
+    for i in 0..data.len() {
         buf[(i * 4)..][..4].copy_from_slice(&data[i].to_be_bytes());
     }
     buf

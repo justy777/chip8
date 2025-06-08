@@ -7,3 +7,4 @@ edition = "2024"
 chip8-core = {path = "../chip8-core"}
 bytes = "1.10"
 iced = {version = "0.13", features = ["tokio", "image-without-codecs"]}
+tokio = {version = "1", features = ["fs"]}
