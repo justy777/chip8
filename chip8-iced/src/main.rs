@@ -2,9 +2,10 @@
 
 use bytes::Bytes;
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
+use iced::keyboard::Key;
 use iced::widget::container::Style;
 use iced::widget::image::{FilterMethod, Handle};
-use iced::{Color, Element, Length, Size, Subscription, Task, widget, window};
+use iced::{Color, Element, Length, Size, Subscription, Task, keyboard, widget, window};
 use std::ops::Div;
 use std::path::Path;
 use std::str::FromStr;
@@ -36,6 +37,8 @@ fn main() -> iced::Result {
 #[derive(Debug, Clone)]
 enum Message {
     RomLoaded(Result<Arc<Vec<u8>>, io::ErrorKind>),
+    KeyPress(Key),
+    KeyRelease(Key),
     Step,
     Exit,
 }
@@ -73,6 +76,22 @@ impl App {
                 self.error = Some(err);
                 Task::none()
             }
+            Message::KeyPress(key) => {
+                if let Key::Character(c) = key.as_ref() {
+                    if let Some(keycode) = get_keycode(c) {
+                        self.emulator.keypad[keycode] = true;
+                    }
+                }
+                Task::none()
+            }
+            Message::KeyRelease(key) => {
+                if let Key::Character(c) = key.as_ref() {
+                    if let Some(keycode) = get_keycode(c) {
+                        self.emulator.keypad[keycode] = false;
+                    }
+                }
+                Task::none()
+            }
             Message::Step => {
                 self.emulator
                     .emulate()
@@ -100,11 +119,16 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if self.running {
+        let every = if self.running {
             iced::time::every(Duration::from_secs(1).div(self.refresh_rate)).map(|_| Message::Step)
         } else {
             Subscription::none()
-        }
+        };
+        Subscription::batch(vec![
+            every,
+            keyboard::on_key_press(|key, _| Some(Message::KeyPress(key))),
+            keyboard::on_key_release(|key, _| Some(Message::KeyRelease(key))),
+        ])
     }
 }
 
@@ -116,9 +140,31 @@ async fn load_file(path: impl AsRef<Path>) -> Result<Arc<Vec<u8>>, io::ErrorKind
 }
 
 fn convert_to_rgba(data: &[u32]) -> Vec<u8> {
-    let mut buf = vec![0; data.len() * 4];
-    for i in 0..data.len() {
-        buf[(i * 4)..][..4].copy_from_slice(&data[i].to_be_bytes());
-    }
-    buf
+    data.iter().flat_map(|&pixel| pixel.to_be_bytes()).collect()
+}
+
+const KEYPAD_MAPPING: [(&str, usize); 16] = [
+    ("1", 0x1),
+    ("2", 0x2),
+    ("3", 0x3),
+    ("4", 0xC),
+    ("Q", 0x4),
+    ("W", 0x5),
+    ("E", 0x6),
+    ("R", 0xD),
+    ("A", 0x7),
+    ("S", 0x8),
+    ("D", 0x9),
+    ("F", 0xE),
+    ("Z", 0xA),
+    ("X", 0x0),
+    ("C", 0xB),
+    ("V", 0xF),
+];
+
+fn get_keycode(key: &str) -> Option<usize> {
+    KEYPAD_MAPPING
+        .iter()
+        .find(|&&(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|&(_, v)| v)
 }

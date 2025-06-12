@@ -284,7 +284,7 @@ impl Chip8 {
 
         let key = self.registers[vx as usize];
 
-        if self.keypad[key as usize] != 0 {
+        if self.keypad[key as usize] {
             self.pc += 2;
         }
     }
@@ -295,7 +295,7 @@ impl Chip8 {
 
         let key = self.registers[vx as usize];
 
-        if self.keypad[key as usize] == 0 {
+        if !self.keypad[key as usize] {
             self.pc += 2;
         }
     }
@@ -315,7 +315,7 @@ impl Chip8 {
 
         if !self.quirks.release || self.pressed_key.is_none() {
             for i in 0..KEY_COUNT {
-                if self.keypad[i] != 0 {
+                if self.keypad[i] {
                     self.registers[vx as usize] = i as u8;
                     if !self.quirks.release {
                         done = true;
@@ -329,7 +329,7 @@ impl Chip8 {
         if self.quirks.release
             && self
                 .pressed_key
-                .is_some_and(|val| self.keypad[val as usize] == 0)
+                .is_some_and(|val| !self.keypad[val as usize])
         {
             self.pressed_key = None;
             done = true;

@@ -91,7 +91,7 @@ pub struct Chip8 {
     quirks: Quirks,
     // Used to check if pressed key is released
     pressed_key: Option<u8>,
-    pub keypad: [u8; KEY_COUNT],
+    pub keypad: [bool; KEY_COUNT],
     pub video: [u32; VIDEO_WIDTH * VIDEO_HEIGHT],
 }
 
@@ -115,7 +115,7 @@ impl Chip8 {
             opcode: 0,
             quirks: Quirks::new(),
             pressed_key: None,
-            keypad: [0; KEY_COUNT],
+            keypad: [false; KEY_COUNT],
             video: [0; VIDEO_WIDTH * VIDEO_HEIGHT],
         }
     }

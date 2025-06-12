@@ -119,7 +119,7 @@ impl std::fmt::Display for ProcessInputError {
 
 impl std::error::Error for ProcessInputError {}
 
-fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, ProcessInputError> {
+fn process_input(sdl_context: &Sdl, keys: &mut [bool]) -> Result<bool, ProcessInputError> {
     let mut quit = false;
 
     for event in sdl_context
@@ -140,12 +140,20 @@ fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, ProcessInpu
                     quit = true;
                     break;
                 }
-                keycode => update_keys(keys, keycode, 1),
+                keycode => {
+                    if let Some(keycode) = get_keycode(&keycode.name()) {
+                        keys[keycode] = true;
+                    }
+                }
             },
             Event::KeyUp {
                 keycode: Some(keycode),
                 ..
-            } => update_keys(keys, keycode, 0),
+            } => {
+                if let Some(keycode) = get_keycode(&keycode.name()) {
+                    keys[keycode] = false;
+                }
+            }
             _ => {}
         }
     }
@@ -153,66 +161,32 @@ fn process_input(sdl_context: &Sdl, keys: &mut [u8]) -> Result<bool, ProcessInpu
     Ok(quit)
 }
 
-fn update_keys(keys: &mut [u8], keycode: Keycode, value: u8) {
-    match keycode {
-        Keycode::X => {
-            keys[0] = value;
-        }
-        Keycode::NUM_1 => {
-            keys[1] = value;
-        }
-        Keycode::NUM_2 => {
-            keys[2] = value;
-        }
-        Keycode::NUM_3 => {
-            keys[3] = value;
-        }
-        Keycode::Q => {
-            keys[4] = value;
-        }
-        Keycode::W => {
-            keys[5] = value;
-        }
-        Keycode::E => {
-            keys[6] = value;
-        }
-        Keycode::A => {
-            keys[7] = value;
-        }
-        Keycode::S => {
-            keys[8] = value;
-        }
-        Keycode::D => {
-            keys[9] = value;
-        }
-        Keycode::Z => {
-            keys[10] = value;
-        }
-        Keycode::C => {
-            keys[11] = value;
-        }
-        Keycode::NUM_4 => {
-            keys[12] = value;
-        }
-        Keycode::R => {
-            keys[13] = value;
-        }
-        Keycode::F => {
-            keys[14] = value;
-        }
-        Keycode::V => {
-            keys[15] = value;
-        }
-        _ => {}
-    }
+fn convert_to_rgba(data: &[u32]) -> Vec<u8> {
+    data.iter().flat_map(|&pixel| pixel.to_be_bytes()).collect()
 }
 
-fn convert_to_rgba(
-    data: &[u32; VIDEO_WIDTH * VIDEO_HEIGHT],
-) -> [u8; VIDEO_WIDTH * VIDEO_HEIGHT * 4] {
-    let mut buf = [0; VIDEO_WIDTH * VIDEO_HEIGHT * 4];
-    for i in 0..(VIDEO_WIDTH * VIDEO_HEIGHT) {
-        buf[(i * 4)..][..4].copy_from_slice(&data[i].to_be_bytes());
-    }
-    buf
+const KEYPAD_MAPPING: [(&str, usize); 16] = [
+    ("1", 0x1),
+    ("2", 0x2),
+    ("3", 0x3),
+    ("4", 0xC),
+    ("q", 0x4),
+    ("w", 0x5),
+    ("e", 0x6),
+    ("r", 0xD),
+    ("a", 0x7),
+    ("s", 0x8),
+    ("d", 0x9),
+    ("f", 0xE),
+    ("z", 0xA),
+    ("x", 0x0),
+    ("c", 0xB),
+    ("v", 0xF),
+];
+
+fn get_keycode(key: &str) -> Option<usize> {
+    KEYPAD_MAPPING
+        .iter()
+        .find(|&&(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|&(_, v)| v)
 }
