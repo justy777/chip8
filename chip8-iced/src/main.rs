@@ -68,7 +68,7 @@ impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::RomLoaded(Ok(rom)) => {
-                self.emulator.load_rom(&rom);
+                self.emulator.load(&rom);
                 self.running = true;
                 Task::none()
             }
@@ -78,16 +78,16 @@ impl App {
             }
             Message::KeyPress(key) => {
                 if let Key::Character(c) = key.as_ref() {
-                    if let Some(keycode) = get_keycode(c) {
-                        self.emulator.keypad[keycode] = true;
+                    if let Some(key_idx) = get_key_idx(c) {
+                        self.emulator.set_key(key_idx, true);
                     }
                 }
                 Task::none()
             }
             Message::KeyRelease(key) => {
                 if let Key::Character(c) = key.as_ref() {
-                    if let Some(keycode) = get_keycode(c) {
-                        self.emulator.keypad[keycode] = false;
+                    if let Some(key_idx) = get_key_idx(c) {
+                        self.emulator.set_key(key_idx, false);
                     }
                 }
                 Task::none()
@@ -103,7 +103,7 @@ impl App {
     }
 
     fn view(&self) -> Element<Message> {
-        let pixels = convert_to_rgba(&self.emulator.video);
+        let pixels = convert_to_rgba(self.emulator.framebuffer());
         let content = widget::image(Handle::from_rgba(
             VIDEO_WIDTH as u32,
             VIDEO_HEIGHT as u32,
@@ -139,8 +139,11 @@ async fn load_file(path: impl AsRef<Path>) -> Result<Arc<Vec<u8>>, io::ErrorKind
         .map_err(|err| err.kind())
 }
 
-fn convert_to_rgba(data: &[u32]) -> Vec<u8> {
-    data.iter().flat_map(|&pixel| pixel.to_be_bytes()).collect()
+fn convert_to_rgba(data: &[bool]) -> Vec<u8> {
+    data.iter()
+        .map(|&pixel| if pixel { Color::WHITE } else { Color::BLACK })
+        .flat_map(Color::into_rgba8)
+        .collect()
 }
 
 const KEYPAD_MAPPING: [(&str, usize); 16] = [
@@ -162,7 +165,7 @@ const KEYPAD_MAPPING: [(&str, usize); 16] = [
     ("V", 0xF),
 ];
 
-fn get_keycode(key: &str) -> Option<usize> {
+fn get_key_idx(key: &str) -> Option<usize> {
     KEYPAD_MAPPING
         .iter()
         .find(|&&(k, _)| k.eq_ignore_ascii_case(key))

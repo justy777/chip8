@@ -5,7 +5,7 @@ use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::PixelFormatEnum;
+use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::render::TextureAccess;
 use std::env;
 use std::str::FromStr;
@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("Failed to load rom from file {rom_path}"))?;
 
     let mut chip8 = Chip8::new();
-    chip8.load_rom(&rom);
+    chip8.load(&rom);
 
     let video_pitch = size_of::<u32>() * VIDEO_WIDTH;
 
@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     let mut quit = false;
 
     while !quit {
-        quit = process_input(&sdl_context, &mut chip8.keypad)?;
+        quit = process_input(&sdl_context, &mut chip8)?;
 
         let dt = last_cycle_time.elapsed().as_millis();
 
@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
                 .context("Failed while emulating Chip8 instruction")?;
 
             texture
-                .update(None, &convert_to_rgba(&chip8.video), video_pitch)
+                .update(None, &convert_to_rgba(chip8.framebuffer()), video_pitch)
                 .map_err(|err| anyhow!(err))
                 .context("Failed to update SDL texture")?;
 
@@ -119,7 +119,7 @@ impl std::fmt::Display for ProcessInputError {
 
 impl std::error::Error for ProcessInputError {}
 
-fn process_input(sdl_context: &Sdl, keys: &mut [bool]) -> Result<bool, ProcessInputError> {
+fn process_input(sdl_context: &Sdl, emu: &mut Chip8) -> Result<bool, ProcessInputError> {
     let mut quit = false;
 
     for event in sdl_context
@@ -142,7 +142,7 @@ fn process_input(sdl_context: &Sdl, keys: &mut [bool]) -> Result<bool, ProcessIn
                 }
                 keycode => {
                     if let Some(keycode) = get_keycode(&keycode.name()) {
-                        keys[keycode] = true;
+                        emu.set_key(keycode, true);
                     }
                 }
             },
@@ -151,7 +151,7 @@ fn process_input(sdl_context: &Sdl, keys: &mut [bool]) -> Result<bool, ProcessIn
                 ..
             } => {
                 if let Some(keycode) = get_keycode(&keycode.name()) {
-                    keys[keycode] = false;
+                    emu.set_key(keycode, false);
                 }
             }
             _ => {}
@@ -161,8 +161,14 @@ fn process_input(sdl_context: &Sdl, keys: &mut [bool]) -> Result<bool, ProcessIn
     Ok(quit)
 }
 
-fn convert_to_rgba(data: &[u32]) -> Vec<u8> {
-    data.iter().flat_map(|&pixel| pixel.to_be_bytes()).collect()
+fn convert_to_rgba(data: &[bool]) -> Vec<u8> {
+    data.iter()
+        .map(|&pixel| if pixel { Color::WHITE } else { Color::BLACK })
+        .flat_map(|color| {
+            let rgba = color.rgba();
+            [rgba.3, rgba.2, rgba.1, rgba.0]
+        })
+        .collect()
 }
 
 const KEYPAD_MAPPING: [(&str, usize); 16] = [
