@@ -6,39 +6,34 @@ use iced::keyboard::Key;
 use iced::widget::container::Style;
 use iced::widget::image::{FilterMethod, Handle};
 use iced::{Color, Element, Length, Size, Subscription, Task, keyboard, widget, window};
+use rfd::AsyncFileDialog;
+use std::io;
 use std::ops::Div;
-use std::path::Path;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::{env, io};
+
+const VIDEO_SCALE: f32 = 10.0;
 
 fn main() -> iced::Result {
-    let args: Vec<String> = env::args().collect();
-
-    let video_scale = f32::from_str(&args[1])
-        .unwrap_or_else(|_| panic!("Failed to parse video scale {}", &args[1]));
-    let refresh_rate = u32::from_str(&args[2])
-        .unwrap_or_else(|_| panic!("Failed to parse refresh rate {}", &args[2]));
-    let rom_path = args[3].clone();
-
     iced::application(App::title, App::update, App::view)
         .subscription(App::subscription)
         .window_size(Size::new(
-            VIDEO_WIDTH as f32 * video_scale,
-            VIDEO_HEIGHT as f32 * video_scale,
+            VIDEO_WIDTH as f32 * VIDEO_SCALE,
+            VIDEO_HEIGHT as f32 * VIDEO_SCALE + 30.0,
         ))
-        .run_with(move || {
-            let app = App::new(refresh_rate);
-            (app, Task::perform(load_file(rom_path), Message::RomLoaded))
-        })
+        .run()
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    RomLoaded(Result<Arc<Vec<u8>>, io::ErrorKind>),
+    Open,
+    RomSelected(Option<PathBuf>),
+    RomLoaded(Result<Vec<u8>, io::ErrorKind>),
     KeyPress(Key),
     KeyRelease(Key),
+    Start,
+    Pause,
+    Stop,
     Step,
     Exit,
 }
@@ -47,16 +42,24 @@ struct App {
     emulator: Chip8,
     refresh_rate: u32,
     running: bool,
+    loaded: bool,
     error: Option<io::ErrorKind>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
-    fn new(refresh_rate: u32) -> Self {
+    fn new() -> Self {
         let emulator = Chip8::new();
         Self {
             emulator,
-            refresh_rate,
+            refresh_rate: 60,
             running: false,
+            loaded: false,
             error: None,
         }
     }
@@ -67,9 +70,21 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Open => Task::perform(pick_file(), Message::RomSelected),
+            Message::RomSelected(path) => {
+                if let Some(path) = path {
+                    Task::perform(load_file(path), Message::RomLoaded)
+                } else {
+                    Task::none()
+                }
+            }
             Message::RomLoaded(Ok(rom)) => {
+                if self.loaded {
+                    self.emulator.reset();
+                }
                 self.emulator.load(&rom);
                 self.running = true;
+                self.loaded = true;
                 Task::none()
             }
             Message::RomLoaded(Err(err)) => {
@@ -92,6 +107,20 @@ impl App {
                 }
                 Task::none()
             }
+            Message::Start => {
+                self.running = true;
+                Task::none()
+            }
+            Message::Pause => {
+                self.running = false;
+                Task::none()
+            }
+            Message::Stop => {
+                self.running = false;
+                self.loaded = false;
+                self.emulator.reset();
+                Task::none()
+            }
             Message::Step => {
                 self.emulator
                     .emulate()
@@ -103,6 +132,27 @@ impl App {
     }
 
     fn view(&self) -> Element<Message> {
+        let controls = widget::row![
+            widget::button("Open").on_press(Message::Open),
+            widget::button("Start").on_press_maybe(if self.loaded && !self.running {
+                Some(Message::Start)
+            } else {
+                None
+            }),
+            widget::button("Pause").on_press_maybe(if self.loaded && self.running {
+                Some(Message::Pause)
+            } else {
+                None
+            }),
+            widget::button("Stop").on_press_maybe(if self.loaded {
+                Some(Message::Stop)
+            } else {
+                None
+            }),
+            widget::button("Exit").on_press(Message::Exit)
+        ]
+        .width(Length::Fill);
+
         let pixels = convert_to_rgba(self.emulator.framebuffer());
         let content = widget::image(Handle::from_rgba(
             VIDEO_WIDTH as u32,
@@ -113,13 +163,13 @@ impl App {
         .height(Length::Fill)
         .filter_method(FilterMethod::Nearest);
 
-        widget::container(content)
+        widget::container(widget::column![controls, content])
             .style(|_| Style::from(Color::BLACK))
             .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let every = if self.running {
+        let every = if self.loaded && self.running {
             iced::time::every(Duration::from_secs(1).div(self.refresh_rate)).map(|_| Message::Step)
         } else {
             Subscription::none()
@@ -132,11 +182,16 @@ impl App {
     }
 }
 
-async fn load_file(path: impl AsRef<Path>) -> Result<Arc<Vec<u8>>, io::ErrorKind> {
-    tokio::fs::read(path)
+async fn pick_file() -> Option<PathBuf> {
+    AsyncFileDialog::new()
+        .set_title("Select ROM")
+        .pick_file()
         .await
-        .map(Arc::new)
-        .map_err(|err| err.kind())
+        .map(PathBuf::from)
+}
+
+async fn load_file(path: impl AsRef<Path>) -> Result<Vec<u8>, io::ErrorKind> {
+    tokio::fs::read(path).await.map_err(|err| err.kind())
 }
 
 fn convert_to_rgba(data: &[bool]) -> Vec<u8> {

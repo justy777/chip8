@@ -64,10 +64,10 @@ impl Chip8 {
             stack: [0; STACK_SIZE],
             delay_timer: 0,
             sound_timer: 0,
-            quirks: Quirks::new(),
-            pressed_key: None,
             keys: [false; KEY_COUNT],
             framebuffer: [false; VIDEO_WIDTH * VIDEO_HEIGHT],
+            quirks: Quirks::new(),
+            pressed_key: None,
         }
     }
 
@@ -80,6 +80,8 @@ impl Chip8 {
         self.stack = [0; STACK_SIZE];
         self.delay_timer = 0;
         self.sound_timer = 0;
+        self.keys = [false; KEY_COUNT];
+        self.framebuffer = [false; VIDEO_WIDTH * VIDEO_HEIGHT];
 
         self.memory[..FONT_SET_SIZE].copy_from_slice(&FONT_SET[..]);
     }
