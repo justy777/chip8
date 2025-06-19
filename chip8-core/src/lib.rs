@@ -45,7 +45,7 @@ pub struct Chip8 {
     framebuffer: [bool; VIDEO_WIDTH * VIDEO_HEIGHT],
     quirks: Quirks,
     // Used to check if pressed key is released
-    pressed_key: Option<u8>,
+    pressed_key: Option<usize>,
 }
 
 impl Chip8 {
@@ -106,17 +106,17 @@ impl Chip8 {
         // Decode and Execute
         self.execute(opcode)?;
 
-        // Decrement the delay timer if it's been set
+        Ok(())
+    }
+
+    pub const fn tick_timers(&mut self) {
         if self.delay_timer > 0 {
             self.delay_timer -= 1;
         }
 
-        // Decrement the sound timer if it's been set
         if self.sound_timer > 0 {
             self.sound_timer -= 1;
         }
-
-        Ok(())
     }
 
     const fn fetch(&mut self) -> u16 {
@@ -217,7 +217,7 @@ pub enum ExecuteError {
 impl std::fmt::Display for ExecuteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::UndefinedInstruction(opcode) => write!(f, "Undefined instruction {opcode}"),
+            Self::UndefinedInstruction(opcode) => write!(f, "Undefined instruction {opcode:#04x}"),
         }
     }
 }

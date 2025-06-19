@@ -14,6 +14,8 @@ use std::time::Duration;
 
 const VIDEO_SCALE: f32 = 10.0;
 
+const TIMER_HZ: u32 = 60;
+
 fn main() -> iced::Result {
     iced::application(App::title, App::update, App::view)
         .subscription(App::subscription)
@@ -34,13 +36,14 @@ enum Message {
     Start,
     Pause,
     Stop,
-    Step,
+    Emulate,
+    TickTimer,
     Exit,
 }
 
 struct App {
     emulator: Chip8,
-    refresh_rate: u32,
+    clock_speed: u32,
     running: bool,
     loaded: bool,
     error: Option<io::ErrorKind>,
@@ -57,7 +60,7 @@ impl App {
         let emulator = Chip8::new();
         Self {
             emulator,
-            refresh_rate: 60,
+            clock_speed: 500,
             running: false,
             loaded: false,
             error: None,
@@ -121,10 +124,14 @@ impl App {
                 self.emulator.reset();
                 Task::none()
             }
-            Message::Step => {
+            Message::Emulate => {
                 self.emulator
                     .emulate()
                     .expect("Failed while emulating Chip8 instruction");
+                Task::none()
+            }
+            Message::TickTimer => {
+                self.emulator.tick_timers();
                 Task::none()
             }
             Message::Exit => window::get_latest().and_then(window::close),
@@ -169,13 +176,20 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let every = if self.loaded && self.running {
-            iced::time::every(Duration::from_secs(1).div(self.refresh_rate)).map(|_| Message::Step)
+        let emulate = if self.loaded && self.running {
+            iced::time::every(Duration::from_secs(1).div(self.clock_speed))
+                .map(|_| Message::Emulate)
+        } else {
+            Subscription::none()
+        };
+        let timer = if self.loaded && self.running {
+            iced::time::every(Duration::from_secs(1).div(TIMER_HZ)).map(|_| Message::TickTimer)
         } else {
             Subscription::none()
         };
         Subscription::batch(vec![
-            every,
+            emulate,
+            timer,
             keyboard::on_key_press(|key, _| Some(Message::KeyPress(key))),
             keyboard::on_key_release(|key, _| Some(Message::KeyRelease(key))),
         ])
