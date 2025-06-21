@@ -2,15 +2,24 @@
 
 use bytes::Bytes;
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
+use iced::alignment::Vertical;
 use iced::keyboard::Key;
 use iced::widget::container::Style;
 use iced::widget::image::{FilterMethod, Handle};
-use iced::{Color, Element, Length, Size, Subscription, Task, keyboard, widget, window};
+use iced::widget::{
+    Button, Checkbox, button, checkbox, column as col, container, horizontal_space, image, text,
+};
+use iced::{Color, Element, Length, Size, Subscription, Task, keyboard, window};
+use iced_aw::menu::DrawPath;
+use iced_aw::{menu_bar, menu_items};
 use rfd::AsyncFileDialog;
 use std::io;
 use std::ops::Div;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+type Item<'a, Message> = iced_aw::menu::Item<'a, Message, iced::Theme, iced::Renderer>;
+type Menu<'a, Message> = iced_aw::menu::Menu<'a, Message, iced::Theme, iced::Renderer>;
 
 const VIDEO_SCALE: f32 = 10.0;
 
@@ -19,10 +28,14 @@ const TIMER_HZ: u32 = 60;
 fn main() -> iced::Result {
     iced::application(App::title, App::update, App::view)
         .subscription(App::subscription)
-        .window_size(Size::new(
-            VIDEO_WIDTH as f32 * VIDEO_SCALE,
-            VIDEO_HEIGHT as f32 * VIDEO_SCALE + 30.0,
-        ))
+        .window(iced::window::Settings {
+            size: Size::new(
+                VIDEO_WIDTH as f32 * VIDEO_SCALE,
+                VIDEO_HEIGHT as f32 * VIDEO_SCALE + 30.0,
+            ),
+            min_size: Some(Size::new(180.0, 180.0)),
+            ..Default::default()
+        })
         .run()
 }
 
@@ -31,10 +44,9 @@ enum Message {
     Open,
     RomSelected(Option<PathBuf>),
     RomLoaded(Result<Vec<u8>, io::ErrorKind>),
-    KeyPress(Key),
-    KeyRelease(Key),
-    Start,
-    Pause,
+    KeyPressed(Key),
+    KeyReleased(Key),
+    PauseToggled(bool),
     Stop,
     Emulate,
     TickTimer,
@@ -44,8 +56,8 @@ enum Message {
 struct App {
     emulator: Chip8,
     clock_speed: u32,
-    running: bool,
-    loaded: bool,
+    is_loaded: bool,
+    is_paused: bool,
     error: Option<io::ErrorKind>,
 }
 
@@ -61,8 +73,8 @@ impl App {
         Self {
             emulator,
             clock_speed: 500,
-            running: false,
-            loaded: false,
+            is_loaded: false,
+            is_paused: false,
             error: None,
         }
     }
@@ -82,19 +94,18 @@ impl App {
                 }
             }
             Message::RomLoaded(Ok(rom)) => {
-                if self.loaded {
+                if self.is_loaded {
                     self.emulator.reset();
                 }
                 self.emulator.load(&rom);
-                self.running = true;
-                self.loaded = true;
+                self.is_loaded = true;
                 Task::none()
             }
             Message::RomLoaded(Err(err)) => {
                 self.error = Some(err);
                 Task::none()
             }
-            Message::KeyPress(key) => {
+            Message::KeyPressed(key) => {
                 if let Key::Character(c) = key.as_ref() {
                     if let Some(key_idx) = get_key_idx(c) {
                         self.emulator.set_key(key_idx, true);
@@ -102,7 +113,7 @@ impl App {
                 }
                 Task::none()
             }
-            Message::KeyRelease(key) => {
+            Message::KeyReleased(key) => {
                 if let Key::Character(c) = key.as_ref() {
                     if let Some(key_idx) = get_key_idx(c) {
                         self.emulator.set_key(key_idx, false);
@@ -110,24 +121,22 @@ impl App {
                 }
                 Task::none()
             }
-            Message::Start => {
-                self.running = true;
-                Task::none()
-            }
-            Message::Pause => {
-                self.running = false;
+            Message::PauseToggled(checked) => {
+                self.is_paused = checked;
                 Task::none()
             }
             Message::Stop => {
-                self.running = false;
-                self.loaded = false;
+                self.is_loaded = false;
+                self.is_paused = false;
                 self.emulator.reset();
                 Task::none()
             }
             Message::Emulate => {
-                self.emulator
-                    .emulate()
-                    .expect("Failed while emulating Chip8 instruction");
+                if self.is_loaded {
+                    self.emulator
+                        .emulate()
+                        .expect("Failed while emulating Chip8 instruction");
+                }
                 Task::none()
             }
             Message::TickTimer => {
@@ -139,29 +148,31 @@ impl App {
     }
 
     fn view(&self) -> Element<Message> {
-        let controls = widget::row![
-            widget::button("Open").on_press(Message::Open),
-            widget::button("Start").on_press_maybe(if self.loaded && !self.running {
-                Some(Message::Start)
-            } else {
-                None
-            }),
-            widget::button("Pause").on_press_maybe(if self.loaded && self.running {
-                Some(Message::Pause)
-            } else {
-                None
-            }),
-            widget::button("Stop").on_press_maybe(if self.loaded {
-                Some(Message::Stop)
-            } else {
-                None
-            }),
-            widget::button("Exit").on_press(Message::Exit)
-        ]
+        let menu_bar = menu_bar!((
+            menu_header("File"),
+            menu(menu_items!((menu_item("Open").on_press(Message::Open))(
+                menu_item("Exit").on_press(Message::Exit)
+            )))
+        )(
+            menu_header("Emulation"),
+            menu(menu_items!((menu_checkbox("Pause", self.is_paused)
+                .on_toggle_maybe(if self.is_loaded {
+                    Some(Message::PauseToggled)
+                } else {
+                    None
+                }))(
+                menu_item("Stop").on_press_maybe(if self.is_loaded {
+                    Some(Message::Stop)
+                } else {
+                    None
+                })
+            )))
+        ))
+        .draw_path(DrawPath::Backdrop)
         .width(Length::Fill);
 
         let pixels = convert_to_rgba(self.emulator.framebuffer());
-        let content = widget::image(Handle::from_rgba(
+        let content = image(Handle::from_rgba(
             VIDEO_WIDTH as u32,
             VIDEO_HEIGHT as u32,
             Bytes::from_owner(pixels),
@@ -170,19 +181,19 @@ impl App {
         .height(Length::Fill)
         .filter_method(FilterMethod::Nearest);
 
-        widget::container(widget::column![controls, content])
+        container(col![menu_bar, horizontal_space().height(5), content])
             .style(|_| Style::from(Color::BLACK))
             .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let emulate = if self.loaded && self.running {
+        let emulate = if self.is_loaded && !self.is_paused {
             iced::time::every(Duration::from_secs(1).div(self.clock_speed))
                 .map(|_| Message::Emulate)
         } else {
             Subscription::none()
         };
-        let timer = if self.loaded && self.running {
+        let timer = if self.is_loaded && !self.is_paused {
             iced::time::every(Duration::from_secs(1).div(TIMER_HZ)).map(|_| Message::TickTimer)
         } else {
             Subscription::none()
@@ -190,8 +201,8 @@ impl App {
         Subscription::batch(vec![
             emulate,
             timer,
-            keyboard::on_key_press(|key, _| Some(Message::KeyPress(key))),
-            keyboard::on_key_release(|key, _| Some(Message::KeyRelease(key))),
+            keyboard::on_key_press(|key, _| Some(Message::KeyPressed(key))),
+            keyboard::on_key_release(|key, _| Some(Message::KeyReleased(key))),
         ])
     }
 }
@@ -239,4 +250,26 @@ fn get_key_idx(key: &str) -> Option<usize> {
         .iter()
         .find(|&&(k, _)| k.eq_ignore_ascii_case(key))
         .map(|&(_, v)| v)
+}
+
+fn menu(items: Vec<Item<Message>>) -> Menu<Message> {
+    Menu::new(items).max_width(120.0).offset(5.0).spacing(5.0)
+}
+
+fn menu_header(label: &str) -> Button<Message> {
+    menu_button(label).width(Length::Shrink)
+}
+
+fn menu_item(label: &str) -> Button<Message> {
+    menu_button(label).width(Length::Fill)
+}
+
+fn menu_button(label: &str) -> Button<Message> {
+    button(text(label).align_y(Vertical::Center))
+        .padding([4, 8])
+        .style(|_, _| Default::default())
+}
+
+fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<Message> {
+    checkbox(label, is_checked).width(Length::Fill)
 }

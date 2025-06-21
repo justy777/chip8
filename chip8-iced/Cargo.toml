@@ -7,5 +7,6 @@ edition = "2024"
 chip8-core = {path = "../chip8-core"}
 bytes = "1.10"
 iced = {version = "0.13", features = ["tokio", "image-without-codecs"]}
+iced_aw = {version = "0.12", default-features = false, features = ["menu"]}
 rfd = {version = "0.15", default-features = false, features = ["xdg-portal", "tokio"]}
 tokio = {version = "1", features = ["fs"]}
