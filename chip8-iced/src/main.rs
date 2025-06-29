@@ -1,22 +1,21 @@
 #![allow(clippy::cast_lossless)]
 
-use bytes::Bytes;
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use iced::alignment::Vertical;
-use iced::keyboard::Key;
-use iced::widget::container::Style;
+use iced::keyboard::{self, Key};
 use iced::widget::image::{FilterMethod, Handle};
 use iced::widget::{
     Button, Checkbox, button, checkbox, column as col, container, horizontal_space, image, text,
 };
-use iced::{Color, Element, Length, Size, Subscription, Task, keyboard, window};
+use iced::window;
+use iced::{Color, Element, Length, Size, Subscription, Task};
 use iced_aw::menu::DrawPath;
 use iced_aw::{menu_bar, menu_items};
 use rfd::AsyncFileDialog;
 use std::io;
 use std::ops::Div;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 type Item<'a, Message> = iced_aw::menu::Item<'a, Message, iced::Theme, iced::Renderer>;
 type Menu<'a, Message> = iced_aw::menu::Menu<'a, Message, iced::Theme, iced::Renderer>;
@@ -28,7 +27,7 @@ const TIMER_HZ: u32 = 60;
 fn main() -> iced::Result {
     iced::application(App::title, App::update, App::view)
         .subscription(App::subscription)
-        .window(iced::window::Settings {
+        .window(window::Settings {
             size: Size::new(
                 VIDEO_WIDTH as f32 * VIDEO_SCALE,
                 VIDEO_HEIGHT as f32 * VIDEO_SCALE + 30.0,
@@ -41,15 +40,15 @@ fn main() -> iced::Result {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Open,
+    SelectRom,
     RomSelected(Option<PathBuf>),
     RomLoaded(Result<Vec<u8>, io::ErrorKind>),
     KeyPressed(Key),
     KeyReleased(Key),
     PauseToggled(bool),
     Stop,
-    Emulate,
-    TickTimer,
+    EmulateTick,
+    TimerTick,
     Exit,
 }
 
@@ -85,7 +84,7 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Open => Task::perform(pick_file(), Message::RomSelected),
+            Message::SelectRom => Task::perform(pick_file(), Message::RomSelected),
             Message::RomSelected(path) => {
                 if let Some(path) = path {
                     Task::perform(load_file(path), Message::RomLoaded)
@@ -99,6 +98,7 @@ impl App {
                 }
                 self.emulator.load(&rom);
                 self.is_loaded = true;
+                self.is_paused = false;
                 Task::none()
             }
             Message::RomLoaded(Err(err)) => {
@@ -131,7 +131,7 @@ impl App {
                 self.emulator.reset();
                 Task::none()
             }
-            Message::Emulate => {
+            Message::EmulateTick => {
                 if self.is_loaded {
                     self.emulator
                         .emulate()
@@ -139,7 +139,7 @@ impl App {
                 }
                 Task::none()
             }
-            Message::TickTimer => {
+            Message::TimerTick => {
                 self.emulator.tick_timers();
                 Task::none()
             }
@@ -150,7 +150,8 @@ impl App {
     fn view(&self) -> Element<Message> {
         let menu_bar = menu_bar!((
             menu_header("File"),
-            menu(menu_items!((menu_item("Open").on_press(Message::Open))(
+            menu(menu_items!((menu_item("Open")
+                .on_press(Message::SelectRom))(
                 menu_item("Exit").on_press(Message::Exit)
             )))
         )(
@@ -172,38 +173,35 @@ impl App {
         .width(Length::Fill);
 
         let pixels = convert_to_rgba(self.emulator.framebuffer());
-        let content = image(Handle::from_rgba(
+        let screen = image(Handle::from_rgba(
             VIDEO_WIDTH as u32,
             VIDEO_HEIGHT as u32,
-            Bytes::from_owner(pixels),
+            pixels,
         ))
         .width(Length::Fill)
         .height(Length::Fill)
         .filter_method(FilterMethod::Nearest);
 
-        container(col![menu_bar, horizontal_space().height(5), content])
-            .style(|_| Style::from(Color::BLACK))
+        container(col![menu_bar, horizontal_space().height(5), screen])
+            .style(|_| container::Style::from(Color::BLACK))
             .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let emulate = if self.is_loaded && !self.is_paused {
-            iced::time::every(Duration::from_secs(1).div(self.clock_speed))
-                .map(|_| Message::Emulate)
-        } else {
-            Subscription::none()
-        };
-        let timer = if self.is_loaded && !self.is_paused {
-            iced::time::every(Duration::from_secs(1).div(TIMER_HZ)).map(|_| Message::TickTimer)
-        } else {
-            Subscription::none()
-        };
-        Subscription::batch(vec![
-            emulate,
-            timer,
+        let mut subscriptions = vec![
             keyboard::on_key_press(|key, _| Some(Message::KeyPressed(key))),
             keyboard::on_key_release(|key, _| Some(Message::KeyReleased(key))),
-        ])
+        ];
+
+        if self.is_loaded && !self.is_paused {
+            let emulate = cycles_per_second(self.clock_speed).map(|_| Message::EmulateTick);
+            let timer = cycles_per_second(TIMER_HZ).map(|_| Message::TimerTick);
+
+            subscriptions.push(emulate);
+            subscriptions.push(timer);
+        }
+
+        Subscription::batch(subscriptions)
     }
 }
 
@@ -267,9 +265,13 @@ fn menu_item(label: &str) -> Button<Message> {
 fn menu_button(label: &str) -> Button<Message> {
     button(text(label).align_y(Vertical::Center))
         .padding([4, 8])
-        .style(|_, _| Default::default())
+        .style(|_, _| button::Style::default())
 }
 
 fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<Message> {
     checkbox(label, is_checked).width(Length::Fill)
+}
+
+fn cycles_per_second(hertz: u32) -> Subscription<Instant> {
+    iced::time::every(Duration::from_secs(1).div(hertz))
 }

@@ -513,7 +513,6 @@ dependencies = [
 name = "chip8-iced"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "chip8-core",
  "iced",
  "iced_aw",
