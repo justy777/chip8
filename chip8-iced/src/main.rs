@@ -10,7 +10,6 @@ use iced::widget::{
 use iced::window;
 use iced::{Color, Element, Length, Size, Subscription, Task};
 use iced_aw::menu::DrawPath;
-use iced_aw::{menu_bar, menu_items};
 use rfd::AsyncFileDialog;
 use std::io;
 use std::ops::Div;
@@ -19,6 +18,7 @@ use std::time::{Duration, Instant};
 
 type Item<'a, Message> = iced_aw::menu::Item<'a, Message, iced::Theme, iced::Renderer>;
 type Menu<'a, Message> = iced_aw::menu::Menu<'a, Message, iced::Theme, iced::Renderer>;
+type MenuBar<'a, Message> = iced_aw::menu::MenuBar<'a, Message, iced::Theme, iced::Renderer>;
 
 const VIDEO_SCALE: f32 = 10.0;
 
@@ -148,27 +148,32 @@ impl App {
     }
 
     fn view(&self) -> Element<Message> {
-        let menu_bar = menu_bar!((
-            menu_header("File"),
-            menu(menu_items!((menu_item("Open")
-                .on_press(Message::SelectRom))(
-                menu_item("Exit").on_press(Message::Exit)
-            )))
-        )(
-            menu_header("Emulation"),
-            menu(menu_items!((menu_checkbox("Pause", self.is_paused)
-                .on_toggle_maybe(if self.is_loaded {
-                    Some(Message::PauseToggled)
-                } else {
-                    None
-                }))(
-                menu_item("Stop").on_press_maybe(if self.is_loaded {
-                    Some(Message::Stop)
-                } else {
-                    None
-                })
-            )))
-        ))
+        let menu_bar = MenuBar::new(vec![
+            Item::with_menu(
+                menu_header("File"),
+                menu(vec![
+                    Item::new(menu_item("Open").on_press(Message::SelectRom)),
+                    Item::new(menu_item("Exit").on_press(Message::Exit)),
+                ]),
+            ),
+            Item::with_menu(
+                menu_header("Emulation"),
+                menu(vec![
+                    Item::new(menu_checkbox("Pause", self.is_paused).on_toggle_maybe(
+                        if self.is_loaded {
+                            Some(Message::PauseToggled)
+                        } else {
+                            None
+                        },
+                    )),
+                    Item::new(menu_item("Stop").on_press_maybe(if self.is_loaded {
+                        Some(Message::Stop)
+                    } else {
+                        None
+                    })),
+                ]),
+            ),
+        ])
         .draw_path(DrawPath::Backdrop)
         .width(Length::Fill);
 
