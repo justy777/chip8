@@ -250,7 +250,7 @@ impl Chip8 {
                 }
             }
         }
-        self.registers[0xF] = if flipped { 1 } else { 0 };
+        self.registers[0xF] = flipped as u8;
     }
 
     // Ex9E: SKP vx

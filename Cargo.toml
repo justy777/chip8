@@ -1,3 +1,19 @@
+[package]
+name = "chip8"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chip8_core = {path = "core" }
+iced = {version = "0.13", features = ["tokio", "image-without-codecs"]}
+iced_aw = {version = "0.12", default-features = false, features = ["menu"]}
+rfd = {version = "0.15", default-features = false, features = ["xdg-portal", "tokio"]}
+tokio = {version = "1", features = ["fs"]}
+
+
 [workspace]
-members = ["chip8-core", "chip8-iced"]
-resolver = "3"
+members = ["core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
