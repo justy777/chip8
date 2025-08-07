@@ -106,18 +106,18 @@ impl App {
                 Task::none()
             }
             Message::KeyPressed(key) => {
-                if let Key::Character(c) = key.as_ref() {
-                    if let Some(key_idx) = get_key_idx(c) {
-                        self.emulator.set_key(key_idx, true);
-                    }
+                if let Key::Character(c) = key.as_ref()
+                    && let Some(key_idx) = get_key_idx(c)
+                {
+                    self.emulator.set_key(key_idx, true);
                 }
                 Task::none()
             }
             Message::KeyReleased(key) => {
-                if let Key::Character(c) = key.as_ref() {
-                    if let Some(key_idx) = get_key_idx(c) {
-                        self.emulator.set_key(key_idx, false);
-                    }
+                if let Key::Character(c) = key.as_ref()
+                    && let Some(key_idx) = get_key_idx(c)
+                {
+                    self.emulator.set_key(key_idx, false);
                 }
                 Task::none()
             }
@@ -147,7 +147,7 @@ impl App {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let menu_bar = MenuBar::new(vec![
             Item::with_menu(
                 menu_header("File"),
@@ -255,25 +255,25 @@ fn get_key_idx(key: &str) -> Option<usize> {
         .map(|&(_, v)| v)
 }
 
-fn menu(items: Vec<Item<Message>>) -> Menu<Message> {
+fn menu(items: Vec<Item<'_, Message>>) -> Menu<'_, Message> {
     Menu::new(items).max_width(120.0).offset(5.0).spacing(5.0)
 }
 
-fn menu_header(label: &str) -> Button<Message> {
+fn menu_header(label: &str) -> Button<'_, Message> {
     menu_button(label).width(Length::Shrink)
 }
 
-fn menu_item(label: &str) -> Button<Message> {
+fn menu_item(label: &str) -> Button<'_, Message> {
     menu_button(label).width(Length::Fill)
 }
 
-fn menu_button(label: &str) -> Button<Message> {
+fn menu_button(label: &str) -> Button<'_, Message> {
     button(text(label).align_y(Vertical::Center))
         .padding([4, 8])
         .style(|_, _| button::Style::default())
 }
 
-fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<Message> {
+fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<'_, Message> {
     checkbox(label, is_checked).width(Length::Fill)
 }
 
