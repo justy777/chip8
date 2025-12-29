@@ -2,11 +2,12 @@
 
 use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use iced::alignment::Vertical;
-use iced::keyboard::{self, Key};
+use iced::keyboard;
 use iced::widget::image::{FilterMethod, Handle};
 use iced::widget::{
-    Button, Checkbox, button, checkbox, column as col, container, horizontal_space, image, text,
+    Button, Checkbox, button, checkbox, column as col, container, image, text,
 };
+use iced::widget::space::horizontal;
 use iced::window;
 use iced::{Color, Element, Length, Size, Subscription, Task};
 use iced_aw::menu::DrawPath;
@@ -25,7 +26,8 @@ const VIDEO_SCALE: f32 = 10.0;
 const TIMER_HZ: u32 = 60;
 
 fn main() -> iced::Result {
-    iced::application(App::title, App::update, App::view)
+    iced::application(App::default, App::update, App::view)
+        .title(App::title)
         .subscription(App::subscription)
         .window(window::Settings {
             size: Size::new(
@@ -43,8 +45,8 @@ enum Message {
     SelectRom,
     RomSelected(Option<PathBuf>),
     RomLoaded(Result<Vec<u8>, io::ErrorKind>),
-    KeyPressed(Key),
-    KeyReleased(Key),
+    KeyPressed(String),
+    KeyReleased(String),
     PauseToggled(bool),
     Stop,
     EmulateTick,
@@ -106,16 +108,14 @@ impl App {
                 Task::none()
             }
             Message::KeyPressed(key) => {
-                if let Key::Character(c) = key.as_ref()
-                    && let Some(key_idx) = get_key_idx(c)
+                if let Some(key_idx) = get_key_idx(&key)
                 {
                     self.emulator.set_key(key_idx, true);
                 }
                 Task::none()
             }
             Message::KeyReleased(key) => {
-                if let Key::Character(c) = key.as_ref()
-                    && let Some(key_idx) = get_key_idx(c)
+                if let Some(key_idx) = get_key_idx(&key)
                 {
                     self.emulator.set_key(key_idx, false);
                 }
@@ -143,7 +143,7 @@ impl App {
                 self.emulator.tick_timers();
                 Task::none()
             }
-            Message::Exit => window::get_latest().and_then(window::close),
+            Message::Exit => window::latest().and_then(window::close),
         }
     }
 
@@ -187,15 +187,30 @@ impl App {
         .height(Length::Fill)
         .filter_method(FilterMethod::Nearest);
 
-        container(col![menu_bar, horizontal_space().height(5), screen])
+        container(col![menu_bar, horizontal().height(5), screen])
             .style(|_| container::Style::from(Color::BLACK))
             .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
         let mut subscriptions = vec![
-            keyboard::on_key_press(|key, _| Some(Message::KeyPressed(key))),
-            keyboard::on_key_release(|key, _| Some(Message::KeyReleased(key))),
+            keyboard::listen().filter_map(|event| match event {
+                keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Character(key),
+                    modifiers: keyboard::Modifiers::NONE,
+                    ..
+                } => {
+                    Some(Message::KeyPressed(key.to_string()))
+                },
+                keyboard::Event::KeyReleased {
+                    key: keyboard::Key::Character(key),
+                    modifiers: keyboard::Modifiers::NONE,
+                    ..
+                } => {
+                    Some(Message::KeyReleased(key.to_string()))
+                },
+                _ => None,
+            }),
         ];
 
         if self.is_loaded && !self.is_paused {
@@ -274,7 +289,7 @@ fn menu_button(label: &str) -> Button<'_, Message> {
 }
 
 fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<'_, Message> {
-    checkbox(label, is_checked).width(Length::Fill)
+    checkbox(is_checked).label(label).width(Length::Fill)
 }
 
 fn cycles_per_second(hertz: u32) -> Subscription<Instant> {

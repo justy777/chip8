@@ -5,9 +5,9 @@ edition.workspace = true
 
 [dependencies]
 chip8_core = {path = "core" }
-iced = {version = "0.13", features = ["tokio", "image-without-codecs"]}
-iced_aw = {version = "0.12", default-features = false, features = ["menu"]}
-rfd = {version = "0.15", default-features = false, features = ["xdg-portal", "tokio"]}
+iced = {version = "0.14", features = ["tokio", "image-without-codecs"]}
+iced_aw = {version = "0.13", default-features = false, features = ["menu"]}
+rfd = {version = "0.16", default-features = false, features = ["xdg-portal", "tokio"]}
 tokio = {version = "1", features = ["fs"]}
 
 
