@@ -1,4 +1,4 @@
-use crate::{Chip8, KEY_COUNT, VIDEO_HEIGHT, VIDEO_WIDTH};
+use crate::{Chip8, ExecuteError, KEY_COUNT, STACK_SIZE, VIDEO_HEIGHT, VIDEO_WIDTH};
 use rand::RngExt;
 
 impl Chip8 {
@@ -8,9 +8,13 @@ impl Chip8 {
     }
 
     //00EE: RET
-    pub(crate) const fn op_00ee(&mut self) {
+    pub(crate) const fn op_00ee(&mut self) -> Result<(), ExecuteError> {
+        if self.sp == 0 {
+            return Err(ExecuteError::StackUnderflow);
+        }
         self.sp -= 1;
         self.pc = self.stack[self.sp as usize];
+        Ok(())
     }
 
     // 1nnn: JP addr
@@ -20,11 +24,15 @@ impl Chip8 {
     }
 
     // 2nnn: CALL addr
-    pub(crate) const fn op_2nnn(&mut self, opcode: u16) {
+    pub(crate) const fn op_2nnn(&mut self, opcode: u16) -> Result<(), ExecuteError> {
+        if self.sp as usize >= STACK_SIZE {
+            return Err(ExecuteError::StackOverflow);
+        }
         let addr = opcode & 0x0FFF;
         self.stack[self.sp as usize] = self.pc;
         self.sp += 1;
         self.pc = addr;
+        Ok(())
     }
 
     // 3xkk: SE Vx, byte

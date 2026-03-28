@@ -135,9 +135,9 @@ impl Chip8 {
             opcode & 0x000F,
         ) {
             (0x0, 0x0, 0xE, 0x0) => self.op_00e0(),
-            (0x0, 0x0, 0xE, 0xE) => self.op_00ee(),
+            (0x0, 0x0, 0xE, 0xE) => self.op_00ee()?,
             (0x1, _, _, _) => self.op_1nnn(opcode),
-            (0x2, _, _, _) => self.op_2nnn(opcode),
+            (0x2, _, _, _) => self.op_2nnn(opcode)?,
             (0x3, _, _, _) => self.op_3xkk(opcode),
             (0x4, _, _, _) => self.op_4xkk(opcode),
             (0x5, _, _, _) => self.op_5xy0(opcode),
@@ -212,12 +212,16 @@ impl Quirks {
 #[derive(Debug)]
 pub enum ExecuteError {
     UndefinedInstruction(u16),
+    StackOverflow,
+    StackUnderflow,
 }
 
 impl std::fmt::Display for ExecuteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::UndefinedInstruction(opcode) => write!(f, "Undefined instruction {opcode:#04x}"),
+            Self::StackOverflow => write!(f, "Stack overflow"),
+            Self::StackUnderflow => write!(f, "Stack underflow"),
         }
     }
 }
