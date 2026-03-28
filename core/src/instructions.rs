@@ -1,5 +1,5 @@
 use crate::{Chip8, KEY_COUNT, VIDEO_HEIGHT, VIDEO_WIDTH};
-use rand::Rng;
+use rand::RngExt;
 
 impl Chip8 {
     // 00E0: CLS
