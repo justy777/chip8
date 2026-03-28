@@ -13,7 +13,6 @@ use iced::{Color, Element, Length, Size, Subscription, Task};
 use iced_aw::menu::DrawPath;
 use rfd::AsyncFileDialog;
 use std::io;
-use std::ops::Div;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -293,5 +292,5 @@ fn menu_checkbox(label: &str, is_checked: bool) -> Checkbox<'_, Message> {
 }
 
 fn cycles_per_second(hertz: u32) -> Subscription<Instant> {
-    iced::time::every(Duration::from_secs(1).div(hertz))
+    iced::time::every(Duration::from_secs(1) / hertz)
 }
