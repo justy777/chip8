@@ -4,10 +4,8 @@ use chip8_core::{Chip8, VIDEO_HEIGHT, VIDEO_WIDTH};
 use iced::alignment::Vertical;
 use iced::keyboard;
 use iced::widget::image::{FilterMethod, Handle};
-use iced::widget::{
-    Button, Checkbox, button, checkbox, column as col, container, image, text,
-};
 use iced::widget::space::horizontal;
+use iced::widget::{Button, Checkbox, button, checkbox, column as col, container, image, text};
 use iced::window;
 use iced::{Color, Element, Length, Size, Subscription, Task};
 use iced_aw::menu::DrawPath;
@@ -107,15 +105,13 @@ impl App {
                 Task::none()
             }
             Message::KeyPressed(key) => {
-                if let Some(key_idx) = get_key_idx(&key)
-                {
+                if let Some(key_idx) = get_key_idx(&key) {
                     self.emulator.set_key(key_idx, true);
                 }
                 Task::none()
             }
             Message::KeyReleased(key) => {
-                if let Some(key_idx) = get_key_idx(&key)
-                {
+                if let Some(key_idx) = get_key_idx(&key) {
                     self.emulator.set_key(key_idx, false);
                 }
                 Task::none()
@@ -192,25 +188,19 @@ impl App {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let mut subscriptions = vec![
-            keyboard::listen().filter_map(|event| match event {
-                keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Character(key),
-                    modifiers: keyboard::Modifiers::NONE,
-                    ..
-                } => {
-                    Some(Message::KeyPressed(key.to_string()))
-                },
-                keyboard::Event::KeyReleased {
-                    key: keyboard::Key::Character(key),
-                    modifiers: keyboard::Modifiers::NONE,
-                    ..
-                } => {
-                    Some(Message::KeyReleased(key.to_string()))
-                },
-                _ => None,
-            }),
-        ];
+        let mut subscriptions = vec![keyboard::listen().filter_map(|event| match event {
+            keyboard::Event::KeyPressed {
+                key: keyboard::Key::Character(key),
+                modifiers: keyboard::Modifiers::NONE,
+                ..
+            } => Some(Message::KeyPressed(key.to_string())),
+            keyboard::Event::KeyReleased {
+                key: keyboard::Key::Character(key),
+                modifiers: keyboard::Modifiers::NONE,
+                ..
+            } => Some(Message::KeyReleased(key.to_string())),
+            _ => None,
+        })];
 
         if self.is_loaded && !self.is_paused {
             let emulate = cycles_per_second(self.clock_speed).map(|_| Message::EmulateTick);
